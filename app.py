@@ -5,20 +5,23 @@ import folium
 from folium.plugins import HeatMap
 from streamlit_folium import folium_static
 from geopy.geocoders import Nominatim
+import plotly.graph_objs as go
+import random
+import plotly.express as px
 
-# Load data
+
 @st.cache_data
 def load_data():
     data = pd.read_excel('News GIS.xlsx', engine='openpyxl')
     return data
 
-# Load world boundaries
+
 @st.cache_data
 def load_world():
     url = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson"
     return gpd.read_file(url)
 
-# Geocode function
+
 @st.cache_data
 def geocode(location):
     geolocator = Nominatim(user_agent="my_app")
@@ -30,7 +33,7 @@ def geocode(location):
         pass
     return None
 
-# Define marker icons for each category
+
 def get_marker_icon(category):
     icons = {
         'Explosive': 'bomb',
@@ -41,7 +44,7 @@ def get_marker_icon(category):
     }
     return icons.get(category, 'info-sign')
 
-# Create a formatted popup HTML
+
 def create_popup_content(row):
     html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 300px;">
@@ -83,24 +86,39 @@ def create_popup_content(row):
     """
     return html
 
-# Main function
+def generate_random_colors(n):
+    return [f"rgb({random.randint(0,255)}, {random.randint(0,255)}, {random.randint(0,255)})" for _ in range(n)]
+
+
 def main():
     st.set_page_config(layout="wide")
     st.title("CBRNE Incident Map")
 
-    # Load data
+
     data = load_data()
     world = load_world()
 
-    # Sidebar filters
+    
+    data['Date'] = pd.to_datetime(data['Date'])
+
+   
     st.sidebar.header("Filters")
     type_filter = st.sidebar.multiselect("Type", data['Type'].unique())
     category_filter = st.sidebar.multiselect("Category", data['Category'].unique())
     country_filter = st.sidebar.multiselect("Country", data['Country'].unique())
     impact_filter = st.sidebar.multiselect("Impact", data['Impact'].unique())
     severity_filter = st.sidebar.multiselect("Severity", data['Severity'].unique())
+    
+   
+    min_date = data['Date'].min().date()
+    max_date = data['Date'].max().date()
+    date_range = st.sidebar.date_input("Date Range", [min_date, max_date])
 
-    # Apply filters
+    
+    start_date = pd.to_datetime(date_range[0])
+    end_date = pd.to_datetime(date_range[1])
+
+ 
     filtered_data = data
     if type_filter:
         filtered_data = filtered_data[filtered_data['Type'].isin(type_filter)]
@@ -112,61 +130,100 @@ def main():
         filtered_data = filtered_data[filtered_data['Impact'].isin(impact_filter)]
     if severity_filter:
         filtered_data = filtered_data[filtered_data['Severity'].isin(severity_filter)]
+    
+   
+    filtered_data = filtered_data[(filtered_data['Date'] >= start_date) & (filtered_data['Date'] <= end_date)]
 
-    # Geocode locations
+
     filtered_data['Coordinates'] = filtered_data.apply(lambda row: geocode(f"{row['City']}, {row['Country']}"), axis=1)
 
-    # Create map 1 (Incident Map)
-    m = folium.Map(location=[0, 0], zoom_start=2)
 
-    # Add country boundaries
-    folium.GeoJson(
-        world,
-        style_function=lambda feature: {
-            'fillColor': '#ffff00',
-            'color': 'black',
-            'weight': 2,
-            'fillOpacity': 0.1,
-        }
-    ).add_to(m)
+    tab1, tab2, tab3 = st.tabs(["Incident Map", "Heatmap", "Data"])
 
-    # Add markers with different icons based on category
-    for idx, row in filtered_data.iterrows():
-        if row['Coordinates']:
-            icon = folium.Icon(icon=get_marker_icon(row['Category']), prefix='fa')
-            folium.Marker(
-                location=row['Coordinates'],
-                popup=folium.Popup(create_popup_content(row), max_width=350),
-                tooltip=row['Title'],
-                icon=icon
+    with tab1:
+        st.subheader("Incident Map")
+        
+    
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+           
+            m = folium.Map(location=[0, 0], zoom_start=2, tiles="CartoDB dark_matter")
+
+   
+            folium.GeoJson(
+                world,
+                style_function=lambda feature: {
+                    'fillColor': '#ffff00',
+                    'color': 'white',
+                    'weight': 1,
+                    'fillOpacity': 0.1,
+                }
             ).add_to(m)
 
-    # Display map 1
-    st.subheader("Incident Map")
-    folium_static(m, width=1200)
+   
+            for idx, row in filtered_data.iterrows():
+                if row['Coordinates']:
+                    icon = folium.Icon(icon=get_marker_icon(row['Category']), prefix='fa')
+                    folium.Marker(
+                        location=row['Coordinates'],
+                        popup=folium.Popup(create_popup_content(row), max_width=350),
+                        tooltip=row['Title'],
+                        icon=icon
+                    ).add_to(m)
 
-    # Create map 2 (Heatmap)
-    st.subheader("Incident Heatmap")
     
-    # Count links per country and city
-    link_counts = filtered_data.groupby(['Country', 'City'])['Link'].count().reset_index()
-    link_counts = link_counts.rename(columns={'Link': 'LinkCount'})
+            folium_static(m, width=700, height=600)
 
-    # Merge link counts with coordinates
-    heatmap_data = pd.merge(filtered_data, link_counts, on=['Country', 'City'])
+        with col2:
+            
+            title_counts = filtered_data['Title'].value_counts().head(10)
+            sources = title_counts.index.tolist()
+            s_counts = title_counts.values.tolist()
 
-    heat_data = heatmap_data[heatmap_data['Coordinates'].notna()][['Coordinates', 'LinkCount']]
-    heat_data['lat'] = heat_data['Coordinates'].apply(lambda x: x[0])
-    heat_data['lon'] = heat_data['Coordinates'].apply(lambda x: x[1])
-    heat_data = heat_data[['lat', 'lon', 'LinkCount']].values.tolist()
+            fig1 = go.Figure(data=[go.Bar(
+                x=sources,
+                y=s_counts,
+                marker_color=generate_random_colors(len(sources))
+            )])
 
-    heatmap = folium.Map(location=[0, 0], zoom_start=2)
-    HeatMap(heat_data).add_to(heatmap)
-    folium_static(heatmap, width=1200)
+            fig1.update_layout(
+                title="Top 10 Incident Titles",
+                yaxis_title="Count",
+                xaxis_tickangle=-45,
+                template="plotly_dark",
+                showlegend=False,
+                height=300  
+            )
+            fig1.update_xaxes(showticklabels=False)  
 
-    # Display filtered data
-    st.subheader("Filtered Data")
-    st.dataframe(filtered_data, width=1200)
+            st.plotly_chart(fig1, use_container_width=True)
+
+            category_counts = filtered_data['Category'].value_counts()
+            fig2 = px.pie(values=category_counts.values, names=category_counts.index, title="Incident Categories")
+            fig2.update_layout(template="plotly_dark", height=300)  
+            st.plotly_chart(fig2, use_container_width=True)
+
+    with tab2:
+        st.subheader("Incident Heatmap")
+
+    
+        link_counts = filtered_data.groupby(['Country', 'City'])['Link'].count().reset_index()
+        link_counts = link_counts.rename(columns={'Link': 'LinkCount'})
+        heatmap_data = pd.merge(filtered_data, link_counts, on=['Country', 'City'])
+
+        heat_data = heatmap_data[heatmap_data['Coordinates'].notna()][['Coordinates', 'LinkCount']]
+        heat_data['lat'] = heat_data['Coordinates'].apply(lambda x: x[0])
+        heat_data['lon'] = heat_data['Coordinates'].apply(lambda x: x[1])
+        heat_data = heat_data[['lat', 'lon', 'LinkCount']].values.tolist()
+
+        heatmap = folium.Map(location=[0, 0], zoom_start=2, tiles="CartoDB dark_matter")
+        HeatMap(heat_data).add_to(heatmap)
+        folium_static(heatmap, width=1200)
+
+    with tab3:
+        st.subheader("Filtered Data")
+        st.dataframe(filtered_data, width=1200)
 
 if __name__ == "__main__":
     main()
