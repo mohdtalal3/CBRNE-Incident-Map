@@ -5,3 +5,6 @@ folium
 streamlit-folium
 geopy
 openpyxl
+fuzzywuzzy
+python-Levenshtein
+plotly
