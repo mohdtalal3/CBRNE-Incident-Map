@@ -8,3 +8,4 @@ openpyxl
 fuzzywuzzy
 python-Levenshtein
 plotly
+streamlit-plotly-events
