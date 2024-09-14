@@ -260,7 +260,7 @@ def main():
         selected_categories = st.session_state.get('selected_categories', None)
         m = create_folium_map(filtered_data, world, selected_categories)
         
-        # Display map
+        # Display  map
         folium_static(m, width=1400, height=500)
         
         # Create and display pie chart
