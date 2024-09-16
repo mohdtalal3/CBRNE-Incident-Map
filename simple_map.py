@@ -136,16 +136,16 @@ def create_plotly_map(filtered_data, selected_categories=None):
                 custom_data.append(row['Title'])
                 sizes.append(10)
             else:
-                # Multiple points at the same location
-                radius = 1  # Adjust this value to change the size of the spider legs
+
+                radius = 1  
                 angles = np.linspace(0, 2*np.pi, len(coord_group), endpoint=False)
                 
-                # Add center point
+          
                 lats.append(lat)
                 lons.append(lon)
                 texts.append(f"Cluster of {len(coord_group)} incidents")
                 custom_data.append(f"Cluster of {len(coord_group)} incidents")
-                sizes.append(15)  # Larger size for cluster points
+                sizes.append(15)  
                 
                 for idx, (_, row) in enumerate(coord_group.iterrows()):
                     spider_lat = lat + radius * np.cos(angles[idx])
@@ -155,9 +155,8 @@ def create_plotly_map(filtered_data, selected_categories=None):
                     lons.append(spider_lon)
                     texts.append(create_popup_content(row))
                     custom_data.append(row['Title'])
-                    sizes.append(8)  # Smaller size for individual points in a cluster
-
-                    # Add lines for spider legs
+                    sizes.append(8)  
+              
                     line_lats.extend([lat, spider_lat, None])
                     line_lons.extend([lon, spider_lon, None])
 
@@ -190,7 +189,7 @@ def create_plotly_map(filtered_data, selected_categories=None):
 
     fig.update_layout(
         mapbox=dict(
-            style="carto-darkmatter",
+            style="open-street-map",
             center=dict(lat=20, lon=0),
             zoom=1.5,
         ),
@@ -216,7 +215,7 @@ def create_plotly_heatmap(heat_data):
     ))
 
     fig.update_layout(
-        mapbox_style="carto-darkmatter",
+        mapbox_style="open-street-map",
         mapbox=dict(
             center=dict(lat=20, lon=0),
             zoom=1.5
@@ -298,8 +297,25 @@ def main():
         # Pie chart
         category_counts = filtered_data['Category'].value_counts()
         fig1 = px.pie(values=category_counts.values, names=category_counts.index, title="Distribution by Category")
-        fig1.update_layout(template="plotly_dark", height=400)
-        
+        fig1.update_layout(
+            template="plotly_dark",
+            height=400,
+            margin=dict(l=150),
+            legend_title="Categories",
+            legend=dict(
+                orientation="v",
+                yanchor="middle",
+                y=0.5,
+                xanchor="left",
+                x=-0.2
+            )
+        )
+        fig1.update_traces(
+        textposition='inside',
+        textinfo='percent+label',
+        hovertemplate="<b>%{label}</b><br>Count: %{value}<br>Percentage: %{percent}"
+    )
+
         selected_points = plotly_events(fig1, click_event=True, hover_event=False)
         if selected_points:
             selected_category = category_counts.index[selected_points[0]['pointNumber']]
@@ -335,16 +351,25 @@ def main():
         )
         st.plotly_chart(fig2, use_container_width=True)
 
-        # Trend chart
         st.subheader("Trend of Articles Over Time")
         articles_by_date = filtered_data.groupby('Date').size().reset_index(name='count')
-        fig3 = px.line(articles_by_date, x='Date', y='count')
+        fig3 = px.bar(
+            articles_by_date, 
+            x='Date', 
+            y='count',
+            labels={'count': 'Number of Articles', 'Date': 'Date'},
+            title="Articles Published Over Time"
+        )
         fig3.update_layout(
             template="plotly_dark", 
             height=300, 
             xaxis_title="Date", 
             yaxis_title="Number of Articles",
             showlegend=False
+        )
+        fig3.update_traces(
+            marker_color=px.colors.qualitative.Set3,  # Use a colorful palette
+            hovertemplate="<b>Date</b>: %{x}<br><b>Articles</b>: %{y}"
         )
         st.plotly_chart(fig3, use_container_width=True)
 
@@ -361,7 +386,7 @@ def main():
         st.subheader("Filtered Data")
         display_columns = ['Title', 'Country', 'City', 'Date', 'Casualty', 'Injury', 'Impact', 'Severity', 'Link']
         df_display = filtered_data[display_columns].copy()
-        df_display['Date'] = df_display['Date'].dt.date
+        df_display['Date'] = df_display['Date'].dt.strftime('%d-%m-%Y')
 
         # Add export button
         csv = df_display.to_csv(index=False)
@@ -377,12 +402,12 @@ def main():
         gb.configure_column("Title", minWidth=400)
         gb.configure_column("Country", minWidth=250)
         gb.configure_column("City", minWidth=200)
-        gb.configure_column("Date", minWidth=200)
-        gb.configure_column("Impact", minWidth=200)
+        gb.configure_column("Date", minWidth=100)
+        gb.configure_column("Impact", minWidth=150)
         gb.configure_column("Casualty", minWidth=50)
         gb.configure_column("Injury", minWidth=50)
         gb.configure_column('Link', minWidth=100)
-        gb.configure_column("Severity", minWidth=200)
+        gb.configure_column("Severity", minWidth=100)
         
         gb.configure_column(
             "Link",

@@ -153,15 +153,23 @@ def filter_data(data, type_filter, category_filter, country_filter, impact_filte
 from folium.plugins import MarkerCluster
 
 def create_folium_map(filtered_data, world, selected_categories=None):
-    m = folium.Map(location=[0, 0], zoom_start=2, tiles="CartoDB dark_matter")
+    m = folium.Map(location=[0, 0], zoom_start=2, tiles=None)
+
+    folium.TileLayer(
+        tiles='https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        attr='Google',
+        name='Google Maps',
+        overlay=False,
+        control=True
+    ).add_to(m)
 
     folium.GeoJson(
         world,
         style_function=lambda feature: {
-            'fillColor': '#ffff00',
-            'color': 'white',
+            'fillColor': 'transparent',
+            'color': '#bcbcbc',
             'weight': 1,
-            'fillOpacity': 0.1,
+            'fillOpacity': 0,
         }
     ).add_to(m)
 
@@ -189,8 +197,19 @@ def create_folium_map(filtered_data, world, selected_categories=None):
 
     return m
 def create_heatmap(heat_data):
-    heatmap = folium.Map(location=[0, 0], zoom_start=2, tiles="CartoDB dark_matter")
+    heatmap = folium.Map(location=[0, 0], zoom_start=2, tiles=None)
+    
+    folium.TileLayer(
+        tiles='https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        attr='Google',
+        name='Google Maps',
+        overlay=False,
+        control=True
+    ).add_to(heatmap)
+
+
     HeatMap(heat_data).add_to(heatmap)
+    
     return heatmap
 
 def main():
@@ -256,18 +275,34 @@ def main():
     with tab1:
         st.subheader("Incident Map")
         
-        # Create map
+
         selected_categories = st.session_state.get('selected_categories', None)
         m = create_folium_map(filtered_data, world, selected_categories)
         
-        # Display  map
+
         folium_static(m, width=1400, height=500)
         
-        # Create and display pie chart
+
         category_counts = filtered_data['Category'].value_counts()
         fig1 = px.pie(values=category_counts.values, names=category_counts.index, title="Distribution by Category")
-        fig1.update_layout(template="plotly_dark", height=400)
-        
+        fig1.update_layout(
+            template="plotly_dark",
+            height=400,
+            margin=dict(l=150),
+            legend_title="Categories",
+            legend=dict(
+                orientation="v",
+                yanchor="middle",
+                y=0.5,
+                xanchor="left",
+                x=-0.2
+            )
+        )
+        fig1.update_traces(
+        textposition='inside',
+        textinfo='percent+label',
+        hovertemplate="<b>%{label}</b><br>Count: %{value}<br>Percentage: %{percent}"
+    )
         selected_points = plotly_events(fig1, click_event=True, hover_event=False)
         if selected_points:
             selected_category = category_counts.index[selected_points[0]['pointNumber']]
@@ -275,17 +310,16 @@ def main():
         elif 'selected_categories' in st.session_state:
             del st.session_state['selected_categories']
 
-        # Create bar chart for country distribution
+
         country_counts = filtered_data['Country'].value_counts().reset_index()
         country_counts.columns = ['Country', 'Count']
 
-        # Define a custom color sequence
-        color_sequence = px.colors.qualitative.Set3  # You can choose other color scales as well
-
+     
+        color_sequence = px.colors.qualitative.Set3  
         fig2 = px.bar(country_counts, x='Country', y='Count', 
                     title="Distribution by Country",
-                    color='Country',  # This will assign a unique color to each country
-                    color_discrete_sequence=color_sequence)  # Use the custom color sequence
+                    color='Country',  
+                    color_discrete_sequence=color_sequence) 
 
         fig2.update_layout(
             template="plotly_dark", 
@@ -295,7 +329,7 @@ def main():
             showlegend=False,
             xaxis_tickangle=45,
             hovermode="closest",
-            xaxis=dict(showticklabels=False)  # Remove country names from x-axis
+            xaxis=dict(showticklabels=False)  
         )
         fig2.update_traces(
             hovertemplate="<b>%{x}</b><br>Count: %{y}"
@@ -304,13 +338,23 @@ def main():
 
         st.subheader("Trend of Articles Over Time")
         articles_by_date = filtered_data.groupby('Date').size().reset_index(name='count')
-        fig3 = px.line(articles_by_date, x='Date', y='count')
+        fig3 = px.bar(
+            articles_by_date, 
+            x='Date', 
+            y='count',
+            labels={'count': 'Number of Articles', 'Date': 'Date'},
+            title="Articles Published Over Time"
+        )
         fig3.update_layout(
             template="plotly_dark", 
             height=300, 
             xaxis_title="Date", 
             yaxis_title="Number of Articles",
             showlegend=False
+        )
+        fig3.update_traces(
+            marker_color=px.colors.qualitative.Set3,  
+            hovertemplate="<b>Date</b>: %{x}<br><b>Articles</b>: %{y}"
         )
         st.plotly_chart(fig3, use_container_width=True)
 
@@ -334,7 +378,7 @@ def main():
         st.subheader("Filtered Data")
         display_columns = ['Title', 'Country', 'City', 'Date', 'Casualty', 'Injury', 'Impact', 'Severity', 'Link']
         df_display = filtered_data[display_columns].copy()
-        df_display['Date'] = df_display['Date'].dt.date
+        df_display['Date'] = df_display['Date'].dt.strftime('%d-%m-%Y')
 
         # Add export button
         csv = df_display.to_csv(index=False)
@@ -350,12 +394,12 @@ def main():
         gb.configure_column("Title", minWidth=400)
         gb.configure_column("Country", minWidth=250)
         gb.configure_column("City", minWidth=200)
-        gb.configure_column("Date", minWidth=200)
-        gb.configure_column("Impact", minWidth=200)
+        gb.configure_column("Date", minWidth=100)
+        gb.configure_column("Impact", minWidth=150)
         gb.configure_column("Casualty", minWidth=50)
         gb.configure_column("Injury", minWidth=50)
         gb.configure_column('Link', minWidth=100)
-        gb.configure_column("Severity", minWidth=200)
+        gb.configure_column("Severity", minWidth=100)
         
         gb.configure_column(
             "Link",
