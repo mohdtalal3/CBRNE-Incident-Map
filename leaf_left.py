@@ -301,7 +301,7 @@ def main():
         fig1.update_traces(
         textposition='inside',
         textinfo='percent+label',
-        hovertemplate="<b>%{label}</b><br>Count: %{value}<br>Percentage: %{percent}"
+        hovertemplate="<b>%{label}</b><br>Count: %{value}<br>"
     )
         selected_points = plotly_events(fig1, click_event=True, hover_event=False)
         if selected_points:
