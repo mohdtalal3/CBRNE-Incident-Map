@@ -12,7 +12,7 @@ from fuzzywuzzy import process
 from st_aggrid import AgGrid, GridOptionsBuilder
 from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 from streamlit_plotly_events import plotly_events
-
+import datetime
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from st_aggrid.shared import JsCode
 @st.cache_data
@@ -160,7 +160,15 @@ def create_folium_map(filtered_data, world, selected_categories=None):
         attr='Google',
         name='Google Maps',
         overlay=False,
-        control=True
+        control=True,
+        show=True,
+        no_wrap=True,
+        min_zoom=3,
+        max_zoom=18,
+
+        detect_retina=True,
+        opacity=1.0,
+        subdomains=['mt0', 'mt1', 'mt2', 'mt3'],
     ).add_to(m)
 
     folium.GeoJson(
@@ -204,7 +212,15 @@ def create_heatmap(heat_data):
         attr='Google',
         name='Google Maps',
         overlay=False,
-        control=True
+        control=True,
+        show=True,
+        no_wrap=True,
+        min_zoom=3,
+        max_zoom=18,
+        max_native_zoom=25,
+        detect_retina=True,
+        opacity=1.0,
+        subdomains=['mt0', 'mt1', 'mt2', 'mt3'],
     ).add_to(heatmap)
 
 
@@ -238,20 +254,27 @@ def main():
 
     if date_filter == "Custom":
         col1, col2 = st.sidebar.columns(2)
+        
+        current_date = datetime.date.today()
+        
+        default_start = current_date - datetime.timedelta(days=30)
+        
         with col1:
             start_date = st.date_input(
                 "From date",
-                value=data['Date'].min().date(),
-                min_value=data['Date'].min().date(),
-                max_value=data['Date'].max().date()
+                value=default_start,
+                min_value=None, 
+                max_value=None  
             )
         with col2:
             end_date = st.date_input(
                 "To date",
-                value=data['Date'].max().date(),
-                min_value=data['Date'].min().date(),
-                max_value=data['Date'].max().date()
+                value=current_date,
+                min_value=None,
+                max_value=None   
             )
+        if end_date < start_date:
+            st.sidebar.error("End date must be after start date.")
     else:
         end_date = pd.Timestamp.now().date()
         if date_filter == "Past Day":
@@ -284,7 +307,22 @@ def main():
         
 
         category_counts = filtered_data['Category'].value_counts()
-        fig1 = px.pie(values=category_counts.values, names=category_counts.index, title="Distribution by Category")
+        color_map = {
+            'Explosive': 'black',
+            'Biological': 'green',
+            'Radiological': 'red',
+            'Chemical': 'orange',
+            'Nuclear': 'blue'
+        }
+
+        fig1 = px.pie(
+            values=category_counts.values,
+            names=category_counts.index,
+            title="Distribution by Category",
+            color=category_counts.index,
+            color_discrete_map=color_map  # Use the dictionary directly
+        )
+
         fig1.update_layout(
             template="plotly_dark",
             height=400,
@@ -298,11 +336,12 @@ def main():
                 x=-0.2
             )
         )
+
         fig1.update_traces(
-        textposition='inside',
-        textinfo='percent+label',
-        hovertemplate="<b>%{label}</b><br>Count: %{value}<br>"
-    )
+            textposition='inside',
+            textinfo='percent+label',
+            hovertemplate="<b>%{label}</b><br>Count: %{value}<br>"
+        )
         selected_points = plotly_events(fig1, click_event=True, hover_event=False)
         if selected_points:
             selected_category = category_counts.index[selected_points[0]['pointNumber']]
@@ -331,9 +370,11 @@ def main():
             hovermode="closest",
             xaxis=dict(showticklabels=False)  
         )
+
         fig2.update_traces(
-            hovertemplate="<b>%{x}</b><br>Count: %{y}"
+            hovertemplate="<b>%{x}</b><br>Count: %{y}<extra></extra>"
         )
+
         st.plotly_chart(fig2, use_container_width=True)
 
         st.subheader("Trend of Articles Over Time")
@@ -376,7 +417,7 @@ def main():
 
     with tab3:
         st.subheader("Filtered Data")
-        display_columns = ['Title', 'Country', 'City', 'Date', 'Casualty', 'Injury', 'Impact', 'Severity', 'Link']
+        display_columns = ['Type','Title', 'Country', 'City', 'Date', 'Casualty', 'Injury', 'Impact', 'Severity', 'Link']
         df_display = filtered_data[display_columns].copy()
         df_display['Date'] = df_display['Date'].dt.strftime('%d-%m-%Y')
 
@@ -390,7 +431,7 @@ def main():
         )
 
         gb = GridOptionsBuilder.from_dataframe(df_display, editable=True)
-
+        gb.configure_column("Type", minWidth=100)
         gb.configure_column("Title", minWidth=400)
         gb.configure_column("Country", minWidth=250)
         gb.configure_column("City", minWidth=200)
