@@ -373,6 +373,29 @@ def main():
 
         st.subheader("Trend of Articles Over Time")
         articles_by_date = filtered_data.groupby('Date').size().reset_index(name='count')
+
+
+        color_scales = [
+            px.colors.qualitative.Plotly,
+            px.colors.qualitative.D3,
+            px.colors.qualitative.G10,
+            px.colors.qualitative.T10,
+            px.colors.qualitative.Alphabet
+        ]
+
+        all_colors = []
+        for scale in color_scales:
+            all_colors.extend(scale)
+
+    
+        def is_not_black(color):
+            # Convert hex to RGB
+            r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+
+            return (r + g + b) > 60  
+
+        filtered_colors = [color for color in all_colors if is_not_black(color)]
+
         fig3 = px.bar(
             articles_by_date, 
             x='Date', 
@@ -381,14 +404,14 @@ def main():
             title="Articles Published Over Time"
         )
         fig3.update_layout(
-            template="plotly_dark", 
+            template="plotly_white",
             height=300, 
             xaxis_title="Date", 
             yaxis_title="Number of Articles",
             showlegend=False
         )
         fig3.update_traces(
-            marker_color=px.colors.qualitative.Set3,  
+            marker_color=filtered_colors,  # Use the filtered color palette
             hovertemplate="<b>Date</b>: %{x}<br><b>Articles</b>: %{y}"
         )
         st.plotly_chart(fig3, use_container_width=True)
