@@ -153,7 +153,7 @@ def filter_data(data, type_filter, category_filter, country_filter, impact_filte
 from folium.plugins import MarkerCluster
 
 def create_folium_map(filtered_data, world, selected_categories=None):
-    m = folium.Map(location=[0, 0], zoom_start=3, tiles=None)
+    m = folium.Map(location=[0, 0], zoom_start=3, tiles=None, max_bounds=True)
 
     folium.TileLayer(
         tiles='https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
@@ -168,6 +168,7 @@ def create_folium_map(filtered_data, world, selected_categories=None):
         detect_retina=True,
         opacity=1.0,
         subdomains=['mt0', 'mt1', 'mt2', 'mt3'],
+        bounds=[[-90, -180], [90, 180]]
     ).add_to(m)
 
     folium.GeoJson(
@@ -203,9 +204,12 @@ def create_folium_map(filtered_data, world, selected_categories=None):
                     icon=icon
                 ).add_to(marker_cluster)
 
+
+    m.fit_bounds([[-90, -180], [90, 180]])
+
     return m
 def create_heatmap(heat_data):
-    heatmap = folium.Map(location=[0, 0], zoom_start=2, tiles=None)
+    heatmap = folium.Map(location=[0, 0], zoom_start=2, tiles=None, max_bounds=True)
     
     folium.TileLayer(
         tiles='https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
@@ -221,8 +225,8 @@ def create_heatmap(heat_data):
         detect_retina=True,
         opacity=1.0,
         subdomains=['mt0', 'mt1', 'mt2', 'mt3'],
+        bounds=[[-90, -180], [90, 180]]
     ).add_to(heatmap)
-
 
     HeatMap(heat_data).add_to(heatmap)
     
@@ -489,6 +493,14 @@ def main():
             theme="streamlit",
             fit_columns_on_grid_load=True,
         )
+    st.markdown("---")  
+    with st.expander("HazMat GIS Disclaimer", expanded=False):
+        st.markdown("""
+        The information presented on the HazMat GIS Dashboard is aggregated from publicly available news articles and other reputable sources. While we strive to ensure the accuracy and timeliness of the data, we cannot guarantee that all information is complete, up-to-date, or free from errors. The incidents, maps, charts, and other visualizations are intended for general informational purposes only.
 
+        Users should not rely solely on the information provided herein for critical decision-making related to hazardous materials or CBRNE (Chemical, Biological, Radiological, Nuclear, Explosive) incidents. We recommend verifying the data with official sources and consulting qualified professionals when necessary.
+
+        By accessing and using this dashboard, you acknowledge and agree that the creators and maintainers of the HazMat GIS Dashboard are not liable for any inaccuracies, omissions, or any outcomes resulting from the use of this information. Use of the dashboard is at your own risk, and you accept full responsibility for any decisions or actions taken based on the data provided.
+        """)
 if __name__ == "__main__":
     main()
